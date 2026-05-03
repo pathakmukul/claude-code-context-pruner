@@ -206,7 +206,35 @@ You'll see chunks like:
 >       "content": "[control op elided - older than sliding window]"
 ```
 
-The before/after files will visibly differ in size — typically 5-25% smaller depending on how tool-heavy the session is.
+### What the savings actually look like
+
+A single-request size diff understates the real benefit. In one verified test session, a single ~190KB payload shrank by ~4% after pruning. That number is small because most of any payload's bytes are the system prompt + tool schemas + recent (in-window) turns, and those are intentionally untouched.
+
+The real win is **compounding over a long-running session**, in two ways:
+
+1. **Byte savings grow with session length.** Without the pruner, every tool result from turn 1 still sits in turn 100's context. With the pruner, anything denylisted dies after `KEEP_RECENT_TURNS`. By the time a session is dozens of turns deep, hundreds of stale tool_results have been zeroed out. Per-request savings climb from a few percent early on to substantially more late-session.
+
+2. **Attention budget, not just token cost.** The model's effective focus on relevant context degrades when surrounded by repeated noise, even if that noise is technically cheap in tokens. Eliding the same recurring "navigated to URL" + "tab context: ..." blob 40+ times stops the model from re-reading dead history when it's trying to reason about the current step. This is the part that actually changes agent quality — and it doesn't show up in a single-request size diff at all.
+
+A common secondary win: many MCP servers (the `claude-in-chrome` example included) emit a `<system-reminder>` in *every* tool_result. Across 60 turns that's 60 copies of the same instruction in context. Pruning out-of-window tool_results kills these duplicates outright.
+
+### Squeezing more savings: shrink the stub
+
+The default replacement stub is a short human-readable string:
+
+```python
+STUB = "[control op elided - older than sliding window]"
+```
+
+If you want to maximize byte savings, shorten it — even a single character works:
+
+```python
+STUB = "x"
+```
+
+The agent only ever sees the stub for *out-of-window* tool results, where you've already decided the content doesn't matter. There's no functional reason for it to be human-readable. The longer string in the default exists purely to make the diff inspection step (above) more legible to *you* during setup. Once you trust it, shrink the stub and reclaim those bytes too.
+
+The same applies to the tool_use `input` replacement (`{"_elided": True}`) — could be `{}` if you want.
 
 ## Caveats
 
