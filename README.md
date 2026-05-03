@@ -169,7 +169,9 @@ sudo security add-trusted-cert -d -r trustRoot \
   ~/.mitmproxy/mitmproxy-ca-cert.pem
 
 # 4. run the pruner
-mitmdump -s context_pruner.py -p 58473
+mitmdump -s context_pruner.py \
+  --ignore-hosts '^(?!api\.anthropic\.com).*$' \
+  -p 58473
 ```
 
 In another terminal, route Claude Code through the proxy:
@@ -177,6 +179,25 @@ In another terminal, route Claude Code through the proxy:
 ```bash
 HTTPS_PROXY=http://localhost:58473 claude
 ```
+
+### Important: `--ignore-hosts` and why you need it
+
+`HTTPS_PROXY` routes **every** outbound HTTPS connection through the proxy — not just Anthropic API calls. By default, mitmproxy will TLS-terminate all of that traffic (substituting its own cert) which breaks any client that doesn't trust the mitmproxy CA. Notably, **Python's `ssl` module on macOS does not honor the system keychain** — it uses certifi's bundled CA list. So a Bash subprocess that calls a third-party API (cricket data, a search API, GitHub, etc.) through the proxy will fail with `CERTIFICATE_VERIFY_FAILED` even after you trust the cert in macOS.
+
+The `--ignore-hosts` flag tells mitmproxy: "for any host matching this regex, don't decrypt — just shuttle the encrypted bytes blindly." The regex `^(?!api\.anthropic\.com).*$` matches everything *except* `api.anthropic.com`. Net effect:
+
+- Anthropic traffic → still gets the full pruning treatment (decrypt → mutate → re-encrypt)
+- All other HTTPS traffic → passes through end-to-end encrypted, untouched
+
+You'll know it's working when a non-Anthropic HTTPS call goes through cleanly:
+
+```bash
+HTTPS_PROXY=http://localhost:58473 python3 -c \
+  "import urllib.request; print(urllib.request.urlopen('https://api.github.com', timeout=5).status)"
+# → 200
+```
+
+Without the flag, the same call returns `CERTIFICATE_VERIFY_FAILED`.
 
 ## Verifying it works
 
@@ -187,7 +208,9 @@ To prove the API is receiving the leaner version:
 ```bash
 # arm a one-shot dump on next eligible request
 mitmdump -s context_pruner.py \
-  --set chrome_pruner_dump_next=true -p 58473
+  --ignore-hosts '^(?!api\.anthropic\.com).*$' \
+  --set chrome_pruner_dump_next=true \
+  -p 58473
 
 # trigger one turn through the agent, then:
 diff <(jq -S . /tmp/chrome-pruner-before.json) \
