@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+/tmp/
+chrome-pruner-before.json
+chrome-pruner-after.json
+chrome-pruner.log
