@@ -21,7 +21,9 @@ spec = importlib.util.spec_from_file_location(
 )
 pruner = importlib.util.module_from_spec(spec)
 sys.modules.setdefault("mitmproxy", type(sys)("mitmproxy"))
-sys.modules.setdefault("mitmproxy.http", type(sys)("mitmproxy.http"))
+mock_http = type(sys)("mitmproxy.http")
+mock_http.HTTPFlow = type("HTTPFlow", (), {})
+sys.modules.setdefault("mitmproxy.http", mock_http)
 sys.modules.setdefault("mitmproxy.ctx", type(sys)("mitmproxy.ctx"))
 spec.loader.exec_module(pruner)
 
@@ -62,9 +64,9 @@ for i, tool in enumerate([
 
 asst_indices = pruner._assistant_turn_indices(messages)
 print(f"Total messages: {len(messages)}")
-print(f"Assistant turns: {len(asst_indices)} | KEEP_RECENT_TURNS={pruner.KEEP_RECENT_TURNS}")
+print(f"Assistant turns: {len(asst_indices)} | KEEP_RECENT_TURNS={pruner.config.keep_recent_turns}")
 
-cutoff = asst_indices[-pruner.KEEP_RECENT_TURNS]
+cutoff = asst_indices[-pruner.config.keep_recent_turns]
 print(f"Cutoff index: {cutoff}")
 prune_ids = pruner._collect_pruneable_ids(messages, cutoff)
 print(f"Pruneable tool_use_ids (older than window, in denylist): {sorted(prune_ids)}")
