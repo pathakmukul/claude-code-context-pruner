@@ -1,0 +1,18 @@
+{
+  "keep_recent_turns": 4,
+  "prune_tools": [
+    "mcp__claude-in-chrome__navigate",
+    "mcp__claude-in-chrome__tabs_create_mcp",
+    "mcp__claude-in-chrome__tabs_close_mcp",
+    "mcp__claude-in-chrome__gif_creator",
+    "mcp__claude-in-chrome__upload_image",
+    "mcp__claude-in-chrome__file_upload",
+    "mcp__claude-in-chrome__resize_window",
+    "mcp__claude-in-chrome__shortcuts_execute",
+    "mcp__claude-in-chrome__switch_browser",
+    "mcp__claude-in-chrome__browser_batch",
+    "mcp__claude-in-chrome__computer",
+    "mcp__claude-in-chrome__form_input"
+  ],
+  "stub": "[control op elided - older than sliding window]"
+}

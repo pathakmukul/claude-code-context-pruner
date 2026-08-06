@@ -49,18 +49,19 @@ The agent process never knows. The local transcript on disk shows the full unmut
 
 ## Two knobs are all you need
 
-```python
-KEEP_RECENT_TURNS = 4
-
-PRUNE_TOOLS = {
+```json
+{
+  "keep_recent_turns": 4,
+  "prune_tools": [
     "tool_name_1",
-    "tool_name_2",
-    ...
+    "tool_name_2"
+  ],
+  "stub": "[control op elided]"
 }
 ```
 
-- `KEEP_RECENT_TURNS` — how many recent assistant turns of activity stay fully intact, regardless of denylist. Larger window = more context preserved, more cost. Smaller = more aggressive pruning.
-- `PRUNE_TOOLS` — which tool names are eligible for pruning when out of window. **Tools NOT in this set are always preserved** (the conservative default — your content-bearing tools survive even if you forget to whitelist them).
+- `keep_recent_turns` — how many recent assistant turns of activity stay fully intact, regardless of denylist. Larger window = more context preserved, more cost. Smaller = more aggressive pruning.
+- `prune_tools` — which tool names are eligible for pruning when out of window. **Tools NOT in this list are always preserved** (the conservative default — your content-bearing tools survive even if you forget to whitelist them).
 
 Pick the tools you know are noisy-but-disposable for your agent. Leave content-bearing tools out.
 
@@ -106,8 +107,9 @@ The MCP server is well-behaved — it returns informative tool results. But "nav
 
 ### The denylist used
 
-```python
-PRUNE_TOOLS = {
+```json
+  "prune_tools": [
+
     "mcp__claude-in-chrome__navigate",
     "mcp__claude-in-chrome__tabs_create_mcp",
     "mcp__claude-in-chrome__tabs_close_mcp",
@@ -120,7 +122,7 @@ PRUNE_TOOLS = {
     "mcp__claude-in-chrome__browser_batch",
     "mcp__claude-in-chrome__computer",
     "mcp__claude-in-chrome__form_input",
-}
+  ]
 ```
 
 These are all pure control ops — once the action completes, the result has no further consequence.
@@ -143,13 +145,14 @@ A surprising secondary win: the chrome MCP server emits a `<system-reminder>` in
 
 ### Adapting it to your agent
 
-Replace `PRUNE_TOOLS` with the tool names from your stack. Tool names follow the format Claude Code uses internally — for MCP tools that's `mcp__<server>__<tool>`, for built-ins that's the bare name (`Bash`, `Read`, etc.). Find the exact names in your local JSONL transcript at `~/.claude/projects/<project>/<session>.jsonl` by grepping for `"name":` inside `tool_use` blocks.
+Replace `prune_tools` in your JSON config with the tool names from your stack. Tool names follow the format Claude Code uses internally — for MCP tools that's `mcp__<server>__<tool>`, for built-ins that's the bare name (`Bash`, `Read`, etc.). Find the exact names in your local JSONL transcript at `~/.claude/projects/<project>/<session>.jsonl` by grepping for `"name":` inside `tool_use` blocks.
 
 That's the only change. The pruning logic, sliding window, and verification harness all stay the same.
 
 ## Files
 
-- `context_pruner.py` — the mitmproxy addon. ~120 lines. Configured for the chrome example out of the box; edit `PRUNE_TOOLS` for your agent.
+- `context_pruner.py` — the mitmproxy addon. ~160 lines. Configured for the chrome example out of the box, but you can override everything via a configuration file.
+- `config.example.json` - example configuration demonstrating the format.
 - `test_context_pruner.py` — synthetic-payload sanity check. Builds a fake conversation with a mix of pruneable and content-bearing tool calls, runs the prune logic, asserts the right things got elided and the right things stayed intact. No network calls.
 
 ## Setup
@@ -168,8 +171,9 @@ sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain \
   ~/.mitmproxy/mitmproxy-ca-cert.pem
 
-# 4. run the pruner
+# 4. run the pruner (with a config file)
 mitmdump -s context_pruner.py \
+  --set context_pruner_config=config.example.json \
   --ignore-hosts '^(?!api\.anthropic\.com).*$' \
   -p 58473
 ```
@@ -209,12 +213,12 @@ To prove the API is receiving the leaner version:
 # arm a one-shot dump on next eligible request
 mitmdump -s context_pruner.py \
   --ignore-hosts '^(?!api\.anthropic\.com).*$' \
-  --set chrome_pruner_dump_next=true \
+  --set context_pruner_dump_next=true \
   -p 58473
 
 # trigger one turn through the agent, then:
-diff <(jq -S . /tmp/chrome-pruner-before.json) \
-     <(jq -S . /tmp/chrome-pruner-after.json) | head -50
+diff <(jq -S . /tmp/context-pruner-before.json) \
+     <(jq -S . /tmp/context-pruner-after.json) | head -50
 ```
 
 You'll see chunks like:
@@ -245,14 +249,14 @@ A common secondary win: many MCP servers (the `claude-in-chrome` example include
 
 The default replacement stub is a short human-readable string:
 
-```python
-STUB = "[control op elided - older than sliding window]"
+```json
+  "stub": "[control op elided - older than sliding window]"
 ```
 
 If you want to maximize byte savings, shorten it — even a single character works:
 
-```python
-STUB = "x"
+```json
+  "stub": "x"
 ```
 
 The agent only ever sees the stub for *out-of-window* tool results, where you've already decided the content doesn't matter. There's no functional reason for it to be human-readable. The longer string in the default exists purely to make the diff inspection step (above) more legible to *you* during setup. Once you trust it, shrink the stub and reclaim those bytes too.
@@ -265,7 +269,7 @@ The same applies to the tool_use `input` replacement (`{"_elided": True}`) — c
 - If Claude Code adds TLS certificate pinning in a future version, this approach stops working silently. Easy to detect (mitmdump logs handshake failures) but no workaround exists at that point.
 - The proxy is per-machine, not per-session. Routes apply to any Claude Code process that has `HTTPS_PROXY` set to it.
 - Wire-level mutation means the API truly does not see the elided content — this is permanent for that request. The local JSONL retains the original, so nothing is lost from your records.
-- The default denylist in this repo targets the `claude-in-chrome` MCP server because that's the worked example. **If you don't change `PRUNE_TOOLS`, the addon does nothing useful for non-chrome agents** — you must add the tool names relevant to your stack.
+- The default denylist in the script targets the `claude-in-chrome` MCP server. **If you don't provide a config file with your own `prune_tools`**, the addon will use these defaults, which does nothing useful for non-chrome agents.
 
 ## License
 

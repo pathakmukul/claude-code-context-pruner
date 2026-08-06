@@ -6,3 +6,4 @@ chrome-pruner-before.json
 chrome-pruner-after.json
 chrome-pruner.log
 HN_POST_DRAFT.md
+.venv/

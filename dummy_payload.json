@@ -1,0 +1,70 @@
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01",
+          "name": "mcp__claude-in-chrome__navigate",
+          "input": {"url": "https://noisy-website.com/old-page"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01",
+          "content": "MASSIVE NOISY LOG DATA THAT SHOULD BE PRUNED ALONG WITH THE INPUT ABOVE"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [{"type": "text", "text": "Turn 2 (Assistant)"}]
+    },
+    {
+      "role": "user",
+      "content": [{"type": "text", "text": "User reply 2"}]
+    },
+    {
+      "role": "assistant",
+      "content": [{"type": "text", "text": "Turn 3 (Assistant)"}]
+    },
+    {
+      "role": "user",
+      "content": [{"type": "text", "text": "User reply 3"}]
+    },
+    {
+      "role": "assistant",
+      "content": [{"type": "text", "text": "Turn 4 (Assistant)"}]
+    },
+    {
+      "role": "user",
+      "content": [{"type": "text", "text": "User reply 4"}]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_05",
+          "name": "mcp__claude-in-chrome__navigate",
+          "input": {"url": "https://recent-website.com/new-page"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_05",
+          "content": "MASSIVE NOISY LOG DATA THAT SHOULD BE KEPT BECAUSE IT IS RECENT"
+        }
+      ]
+    }
+  ]
+}
